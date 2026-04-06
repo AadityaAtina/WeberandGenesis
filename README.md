@@ -1,1 +1,1 @@
-# WeberandGenesis
+# WeberandGenesis Templates
