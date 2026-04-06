@@ -1,0 +1,69 @@
+parameters:
+- name: jobName
+  type: string
+
+- name: displayName
+  type: string
+
+- name: vmImage
+  type: string
+
+- name: prodBuildCommand
+  type: string
+
+- name: devBuildCommand
+  type: string
+
+- name: artifactName
+  type: string
+
+- name: archiveFileName
+  type: string
+
+jobs:
+- job: ${{ parameters.jobName }}
+  displayName: ${{ parameters.displayName }}
+  pool:
+    vmImage: ${{ parameters.vmImage }}
+
+  steps:
+  - task: UseNode@1
+    displayName: 'Install Node.js'
+    inputs:
+      version: '22.x'
+
+  - task: Cache@2
+    displayName: 'Cache npm dependencies'
+    inputs:
+      key: 'npm | "$(Agent.OS)" | package-lock.json'
+      restoreKeys: |
+        npm | "$(Agent.OS)"
+      path: '$(Pipeline.Workspace)/.npm'
+
+  - script: npm ci --cache $(Pipeline.Workspace)/.npm --prefer-offline --legacy-peer-deps
+    displayName: 'Install dependencies (npm ci)'
+
+  - script: npm install -g @angular/cli
+    displayName: 'Install Angular CLI'
+
+  - script: |
+      if [ "$(Build.SourceBranch)" = "refs/heads/main" ]; then
+        echo "Running PRODUCTION build"
+        ${{ parameters.prodBuildCommand }}
+      else
+        echo "Running DEVELOPMENT build"
+        ${{ parameters.devBuildCommand }}
+      fi
+    displayName: 'Build based on branch'
+
+  - task: ArchiveFiles@2
+    displayName: 'Archive build'
+    inputs:
+      rootFolderOrFile: 'dist/phonix/'
+      includeRootFolder: false
+      archiveType: zip
+      archiveFile: '$(Build.ArtifactStagingDirectory)/${{ parameters.archiveFileName }}'
+
+  - publish: '$(Build.ArtifactStagingDirectory)/${{ parameters.archiveFileName }}'
+    displayName: 'Publish artifact'
+    artifact: ${{ parameters.artifactName }}
