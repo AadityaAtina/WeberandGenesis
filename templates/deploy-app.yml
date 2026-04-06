@@ -1,0 +1,55 @@
+parameters:
+- name: deploymentName
+  type: string
+
+- name: displayName
+  type: string
+
+- name: environmentName
+  type: string
+
+- name: vmImage
+  type: string
+
+- name: azureSubscription
+  type: string
+
+- name: appName
+  type: string
+
+- name: resourceGroupName
+  type: string
+
+- name: slotName
+  type: string
+
+- name: artifactName
+  type: string
+
+- name: packageFile
+  type: string
+
+jobs:
+- deployment: ${{ parameters.deploymentName }}
+  displayName: ${{ parameters.displayName }}
+  environment: ${{ parameters.environmentName }}
+  pool:
+    vmImage: ${{ parameters.vmImage }}
+
+  strategy:
+    runOnce:
+      deploy:
+        steps:
+        - download: current
+          artifact: ${{ parameters.artifactName }}
+
+        - task: AzureWebApp@1
+          displayName: 'Deploy app'
+          inputs:
+            azureSubscription: ${{ parameters.azureSubscription }}
+            appType: webAppLinux
+            appName: ${{ parameters.appName }}
+            deployToSlotOrASE: true
+            resourceGroupName: ${{ parameters.resourceGroupName }}
+            slotName: ${{ parameters.slotName }}
+            package: '$(Pipeline.Workspace)/${{ parameters.artifactName }}/${{ parameters.packageFile }}'
