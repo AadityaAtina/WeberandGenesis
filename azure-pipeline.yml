@@ -1,0 +1,139 @@
+trigger:
+- development
+- main
+
+resources:
+- repo: self
+
+variables:
+  vmImageName: 'ubuntu-latest'
+  azureSubscription: 'rescuedigital (a1a51b50-b8e7-410c-946b-b239872d9b79)'
+  resourceGroupWeber: 'wr-hub-eu-rg'
+  resourceGroupGenesis: 'grs-hub-us-rg'
+  WebappweberName: 'wr-hub-eu'
+  WebappgenesisName: 'genesis-hub-us'
+
+stages:
+# ===========================================================
+# BUILD STAGE
+# ===========================================================
+- stage: Build
+  displayName: 'Build Applications'
+  jobs:
+  - template: templates/build-app.yml
+    parameters:
+      jobName: build_weber
+      displayName: 'Build Weber App'
+      vmImage: $(vmImageName)
+      prodBuildCommand: 'npm run build-weber-live'
+      devBuildCommand: 'npm run build-weber-dev'
+      artifactName: 'weber'
+      archiveFileName: 'weber.zip'
+
+  - template: templates/build-app.yml
+    parameters:
+      jobName: build_genesis
+      displayName: 'Build Genesis App'
+      vmImage: $(vmImageName)
+      prodBuildCommand: 'npm run build-genesis-live'
+      devBuildCommand: 'npm run build-genesis-dev'
+      artifactName: 'genesis'
+      archiveFileName: 'genesis.zip'
+
+# ===========================================================
+# DEVELOPMENT DEPLOY STAGE
+# ===========================================================
+- stage: DeployToDevelopment
+  displayName: 'Deploy to Development'
+  dependsOn: Build
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/development'))
+  jobs:
+  - template: templates/deploy-app.yml
+    parameters:
+      deploymentName: deploy_weber_dev
+      displayName: 'Deploy Weber to DEV'
+      environmentName: 'smartforce-dev'
+      vmImage: $(vmImageName)
+      azureSubscription: $(azureSubscription)
+      appName: $(WebappweberName)
+      resourceGroupName: $(resourceGroupWeber)
+      slotName: 'dev'
+      artifactName: 'weber'
+      packageFile: 'weber.zip'
+
+  - template: templates/deploy-app.yml
+    parameters:
+      deploymentName: deploy_genesis_dev
+      displayName: 'Deploy Genesis to DEV'
+      environmentName: 'smartforce-dev'
+      vmImage: $(vmImageName)
+      azureSubscription: $(azureSubscription)
+      appName: $(WebappgenesisName)
+      resourceGroupName: $(resourceGroupGenesis)
+      slotName: 'dev'
+      artifactName: 'genesis'
+      packageFile: 'genesis.zip'
+
+# ===========================================================
+# STAGING DEPLOY STAGE
+# ===========================================================
+- stage: DeployToStaging
+  displayName: 'Deploy to Staging'
+  dependsOn: Build
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  jobs:
+  - template: templates/deploy-app.yml
+    parameters:
+      deploymentName: deploy_weber_staging
+      displayName: 'Deploy Weber to STAGING'
+      environmentName: 'smartforce-production'
+      vmImage: $(vmImageName)
+      azureSubscription: $(azureSubscription)
+      appName: $(WebappweberName)
+      resourceGroupName: $(resourceGroupWeber)
+      slotName: 'staging'
+      artifactName: 'weber'
+      packageFile: 'weber.zip'
+
+  - template: templates/deploy-app.yml
+    parameters:
+      deploymentName: deploy_genesis_staging
+      displayName: 'Deploy Genesis to STAGING'
+      environmentName: 'smartforce-production'
+      vmImage: $(vmImageName)
+      azureSubscription: $(azureSubscription)
+      appName: $(WebappgenesisName)
+      resourceGroupName: $(resourceGroupGenesis)
+      slotName: 'staging'
+      artifactName: 'genesis'
+      packageFile: 'genesis.zip'
+
+# ===========================================================
+# PRODUCTION PROMOTION STAGE
+# ===========================================================
+- stage: PromoteToProduction
+  displayName: 'Promote to Production'
+  dependsOn: DeployToStaging
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  jobs:
+  - template: templates/swap-slot.yml
+    parameters:
+      deploymentName: promote_weber
+      displayName: 'Promote Weber to Production'
+      environmentName: 'smartforce-production'
+      vmImage: $(vmImageName)
+      azureSubscription: $(azureSubscription)
+      appName: $(WebappweberName)
+      resourceGroupName: $(resourceGroupWeber)
+      sourceSlot: 'staging'
+
+  - template: templates/swap-slot.yml
+    parameters:
+      deploymentName: promote_genesis
+      displayName: 'Promote Genesis to Production'
+      environmentName: 'smartforce-production'
+      vmImage: $(vmImageName)
+      azureSubscription: $(azureSubscription)
+      appName: $(WebappgenesisName)
+      resourceGroupName: $(resourceGroupGenesis)
+      sourceSlot: 'staging'
