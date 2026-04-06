@@ -1,0 +1,69 @@
+// Without branch change logic
+parameters:      
+- name: jobName
+  type: string
+
+- name: displayName
+  type: string
+
+- name: vmImage
+  type: string
+  default: 'ubuntu-latest'
+
+- name: nodeVersion
+  type: string
+  default: '22.x'
+
+- name: buildCommand
+  type: string
+
+- name: distFolder
+  type: string
+  default: 'dist/phonix/'
+
+- name: artifactName
+  type: string
+
+- name: archiveFileName
+  type: string
+
+jobs:
+- job: ${{ parameters.jobName }}
+  displayName: ${{ parameters.displayName }}
+  pool:
+    vmImage: ${{ parameters.vmImage }}
+
+  steps:
+  - task: UseNode@1
+    displayName: 'Install Node.js'
+    inputs:
+      version: ${{ parameters.nodeVersion }}
+
+  - task: Cache@2
+    displayName: 'Cache npm dependencies'
+    inputs:
+      key: 'npm | "$(Agent.OS)" | package-lock.json'
+      restoreKeys: |
+        npm | "$(Agent.OS)"
+      path: '$(Pipeline.Workspace)/.npm'
+
+  - script: npm ci --cache $(Pipeline.Workspace)/.npm --prefer-offline --legacy-peer-deps
+    displayName: 'Install dependencies (npm ci)'
+
+  - script: npm install -g @angular/cli
+    displayName: 'Install Angular CLI'
+
+  - script: ${{ parameters.buildCommand }}
+    displayName: 'Run build command'
+
+  - task: ArchiveFiles@2
+    displayName: 'Archive build'
+    inputs:
+      rootFolderOrFile: ${{ parameters.distFolder }}
+      includeRootFolder: false
+      archiveType: zip
+      archiveFile: '$(Build.ArtifactStagingDirectory)/${{ parameters.archiveFileName }}'
+
+  - publish: '$(Build.ArtifactStagingDirectory)/${{ parameters.archiveFileName }}'
+    displayName: 'Publish artifact'
+    artifact: ${{ parameters.artifactName }}
