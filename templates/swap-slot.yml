@@ -1,0 +1,44 @@
+parameters:
+- name: deploymentName
+  type: string
+
+- name: displayName
+  type: string
+
+- name: environmentName
+  type: string
+
+- name: vmImage
+  type: string
+
+- name: azureSubscription
+  type: string
+
+- name: appName
+  type: string
+
+- name: resourceGroupName
+  type: string
+
+- name: sourceSlot
+  type: string
+
+jobs:
+- deployment: ${{ parameters.deploymentName }}
+  displayName: ${{ parameters.displayName }}
+  environment: ${{ parameters.environmentName }}
+  pool:
+    vmImage: ${{ parameters.vmImage }}
+
+  strategy:
+    runOnce:
+      deploy:
+        steps:
+        - task: AzureAppServiceManage@0
+          displayName: 'Swap slot to production'
+          inputs:
+            azureSubscription: ${{ parameters.azureSubscription }}
+            Action: 'Swap Slots'
+            WebAppName: ${{ parameters.appName }}
+            ResourceGroupName: ${{ parameters.resourceGroupName }}
+            SourceSlot: ${{ parameters.sourceSlot }}
